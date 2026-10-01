@@ -1,0 +1,101 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
+data = pd.read_csv("Disease_Risk_Prediction_Dataset_with_disease.csv")
+
+print(data.head())
+print(data.shape)
+data = data.drop(["Patient_ID", "Likely_Disease"], axis=1)
+
+print(data.columns)
+X = data.drop("Disease_Risk", axis=1)
+y = data["Disease_Risk"]
+numeric_features = X.select_dtypes(include=["int64", "float64"]).columns
+categorical_features = X.select_dtypes(include=["object"]).columns
+
+print("Numeric Columns:")
+print(numeric_features)
+
+print("\nCategorical Columns:")
+print(categorical_features)
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("num", StandardScaler(), numeric_features),
+        ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features)
+    ]
+)
+model = Pipeline(
+    steps=[
+        ("preprocessor", preprocessor),
+        ("classifier", LogisticRegression(
+            max_iter=2000,
+            C=1.0
+        ))
+    ]
+)
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.20,
+    random_state=42,
+    stratify=y
+)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+
+print("Logistic Regression Accuracy:", accuracy)
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+cm = confusion_matrix(y_test, y_pred)
+
+print("\nConfusion Matrix:")
+print(cm)
+
+disp = ConfusionMatrixDisplay(
+    confusion_matrix=cm,
+    display_labels=model.classes_
+)
+
+disp.plot()
+plt.title("Logistic Regression - Confusion Matrix")
+plt.show()
+cv_scores = cross_val_score(
+    model,
+    X,
+    y,
+    cv=5,
+    scoring="accuracy"
+)
+
+print("Cross Validation Scores:", cv_scores)
+print("Average CV Accuracy:", cv_scores.mean())
+new_patient = pd.DataFrame({
+    "Age": [45],
+    "Gender": ["Female"],
+    "BMI": [28.5],
+    "Blood_Pressure": [135],
+    "Cholesterol": [210],
+    "Glucose": [110],
+    "Heart_Rate": [78],
+    "Smoking": ["No"],
+    "Alcohol": ["No"],
+    "Physical_Activity": ["Medium"],
+    "Family_History": ["Yes"],
+    "Stress_Level": ["Medium"],
+    "Sleep_Hours": [6.5]
+})
+
+prediction = model.predict(new_patient)
+
+print("Predicted Disease Risk:", prediction[0])
+probability = model.predict_proba(new_patient)
+
+for risk, prob in zip(model.classes_, probability[0]):
+    print(risk, ":", round(prob * 100, 2), "%")
